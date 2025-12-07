@@ -1,6 +1,6 @@
 import argparse
 
-from leanllm.engine import LLM
+from leanllm import LLM
 
 
 def main():
