@@ -1,7 +1,7 @@
 import torch
 from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 
-from .models import GPT2, load_gpt2_from_hf
+from .models import GPT2, load_gpt2_from_hf, Qwen3, load_qwen_from_hf
 
 
 class LLM:
@@ -21,6 +21,8 @@ class LLM:
         # Build and load model
         if "gpt2" in model_id.lower():
             self.model = self._load_gpt2(hf_cfg)
+        elif "qwen" in model_id.lower():
+            self.model = self._load_qwen(hf_cfg)
         else:
             raise ValueError(f"Model {model_id} not supported yet")
 
@@ -49,6 +51,28 @@ class LLM:
         # Load weights from HF
         hf_model = AutoModelForCausalLM.from_pretrained(self.model_id)
         load_gpt2_from_hf(model, hf_model.state_dict())
+        del hf_model  # Free memory
+        
+        # Move to target device/dtype after loading weights
+        model = model.to(device=self.device, dtype=self.dtype)
+        return model
+
+    def _load_qwen(self, hf_cfg):
+        """Load Qwen3 model from HF"""
+        model = Qwen3(
+            vocab_size=hf_cfg.vocab_size,
+            hidden_size=hf_cfg.hidden_size,
+            num_layers=hf_cfg.num_hidden_layers,
+            num_heads=hf_cfg.num_attention_heads,
+            num_kv_heads=getattr(hf_cfg, "num_key_value_heads", hf_cfg.num_attention_heads),
+            max_position_embeddings=hf_cfg.max_position_embeddings,
+            rope_theta=getattr(hf_cfg, "rope_theta", 1000000.0),
+            intermediate_size=getattr(hf_cfg, "intermediate_size", hf_cfg.hidden_size * 4),
+        )
+
+        # Load weights from HF
+        hf_model = AutoModelForCausalLM.from_pretrained(self.model_id)
+        load_qwen_from_hf(model, hf_model.state_dict())
         del hf_model  # Free memory
         
         # Move to target device/dtype after loading weights

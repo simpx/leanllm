@@ -3,10 +3,24 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
+class RMSNorm(nn.Module):
+    """Root Mean Square Layer Normalization"""
+    def __init__(self, hidden_size: int, eps: float = 1e-6):
+        super().__init__()
+        self.weight = nn.Parameter(torch.ones(hidden_size))
+        self.eps = eps
+
+    def forward(self, x):
+        variance = x.pow(2).mean(-1, keepdim=True)
+        x = x * torch.rsqrt(variance + self.eps)
+        return self.weight * x
+
+
 class RotaryEmbedding(nn.Module):
     """RoPE - Rotary Position Embedding"""
     def __init__(self, dim: int, max_position: int, base: float = 10000.0):
         super().__init__()
+        self.base = base
         pos = torch.arange(max_position, dtype=torch.float32)
         inv_freq = 1.0 / (base ** (torch.arange(0, dim, 2).float() / dim))
         freqs = torch.einsum("i,j->ij", pos, inv_freq)
@@ -15,8 +29,8 @@ class RotaryEmbedding(nn.Module):
         self.register_buffer("sin", emb.sin(), persistent=False)
 
     def forward(self, x: torch.Tensor, pos: torch.Tensor):
-        cos = self.cos[pos][:, None, None, : x.size(-1)]
-        sin = self.sin[pos][:, None, None, : x.size(-1)]
+        cos = self.cos[pos][:, None, None, : x.size(-1)].to(x.dtype)
+        sin = self.sin[pos][:, None, None, : x.size(-1)].to(x.dtype)
         x1, x2 = x[..., ::2], x[..., 1::2]
         rot_x = torch.stack((-x2, x1), dim=-1).reshape_as(x)
         return x * cos + rot_x * sin
